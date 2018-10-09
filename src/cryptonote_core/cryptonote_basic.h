@@ -151,16 +151,8 @@ namespace cryptonote
     //extra
     std::vector<uint8_t> extra;
 
-    std::vector<uint64_t> output_unlock_times;
-    bool is_deregister;
-
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
-      if (blob_type == BLOB_TYPE_CRYPTONOTE_LOKI)
-      {
-        FIELD(output_unlock_times)
-        FIELD(is_deregister)
-      }
       VARINT_FIELD(unlock_time)
       FIELD(vin)
       FIELD(vout)
@@ -283,14 +275,11 @@ namespace cryptonote
   /*                                                                      */
   /************************************************************************/
 
-  const uint8_t CURRENT_BYTECOIN_BLOCK_MAJOR_VERSION = 1;
-
   struct bytecoin_block
   {
-    uint8_t major_version;
-    uint8_t minor_version;
     crypto::hash prev_id;
-    uint32_t nonce;
+    crypto::hash merkle_root;
+    uint64_t nonce;
     size_t number_of_transactions;
     std::vector<crypto::hash> miner_tx_branch;
     transaction miner_tx;
@@ -310,10 +299,9 @@ namespace cryptonote
     }
 
     BEGIN_SERIALIZE_OBJECT()
-      VARINT_FIELD_N("major_version", b.major_version);
-      VARINT_FIELD_N("minor_version", b.minor_version);
       VARINT_FIELD(timestamp);
       FIELD_N("prev_id", b.prev_id);
+      FIELD_N("merkle_root", b.merkle_root);
       FIELD_N("nonce", b.nonce);
 
       if (hashing_serialization)
@@ -377,18 +365,16 @@ namespace cryptonote
   {
     enum BLOB_TYPE blob_type;
 
-    uint8_t major_version;
-    uint8_t minor_version;
     uint64_t timestamp;
     crypto::hash prev_id;
-    uint32_t nonce;
+    crypto::hash merkle_root;
+    uint64_t nonce;
 
     BEGIN_SERIALIZE()
-      VARINT_FIELD(major_version)
-      VARINT_FIELD(minor_version)
-      if (blob_type != BLOB_TYPE_FORKNOTE2) VARINT_FIELD(timestamp)
       FIELD(prev_id)
       if (blob_type != BLOB_TYPE_FORKNOTE2) FIELD(nonce)
+      if (blob_type != BLOB_TYPE_FORKNOTE2) FIELD(timestamp)
+      FIELD(merkle_root)
     END_SERIALIZE()
   };
 

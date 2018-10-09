@@ -10,6 +10,7 @@
 #include "common/base58.h"
 #include "serialization/binary_utils.h"
 #include <nan.h>
+#include <iostream>
 
 #define THROW_ERROR_EXCEPTION(x) Nan::ThrowError(x)
 
@@ -43,9 +44,8 @@ static bool fillExtra(cryptonote::block& block1, const cryptonote::block& block2
 
 static bool mergeBlocks(const cryptonote::block& block1, cryptonote::block& block2, const std::vector<crypto::hash>& branch2) {
     block2.timestamp = block1.timestamp;
-    block2.parent_block.major_version = block1.major_version;
-    block2.parent_block.minor_version = block1.minor_version;
     block2.parent_block.prev_id = block1.prev_id;
+    block2.parent_block.merkle_root = block1.merkle_root;
     block2.parent_block.nonce = block1.nonce;
     block2.parent_block.miner_tx = block1.miner_tx;
     block2.parent_block.number_of_transactions = block1.tx_hashes.size() + 1;
@@ -59,10 +59,9 @@ static bool mergeBlocks(const cryptonote::block& block1, cryptonote::block& bloc
 }
 
 static bool construct_parent_block(const cryptonote::block& b, cryptonote::block& parent_block) {
-    parent_block.major_version = 1;
-    parent_block.minor_version = 0;
     parent_block.timestamp = b.timestamp;
     parent_block.prev_id = b.prev_id;
+    parent_block.merkle_root = b.merkle_root;
     parent_block.nonce = b.parent_block.nonce;
     parent_block.miner_tx.version = CURRENT_TRANSACTION_VERSION;
     parent_block.miner_tx.unlock_time = 0;
@@ -77,6 +76,10 @@ NAN_METHOD(convert_blob) {
     if (!Buffer::HasInstance(target)) return THROW_ERROR_EXCEPTION("Argument should be a buffer object.");
 
     blobdata input = std::string(Buffer::Data(target), Buffer::Length(target));
+
+    // printf("shareBuffer length = %d\n", Buffer::Length(target));
+    // printf("input = %s\n", input);
+
     blobdata output = "";
 
     enum BLOB_TYPE blob_type = BLOB_TYPE_CRYPTONOTE;
@@ -134,18 +137,20 @@ NAN_METHOD(construct_block_blob) {
 
     Local<Object> block_template_buf = info[0]->ToObject();
     Local<Object> nonce_buf = info[1]->ToObject();
+    Local<Object> merkle_root_buf = info[2]->ToObject();
 
-    if (!Buffer::HasInstance(block_template_buf) || !Buffer::HasInstance(nonce_buf)) return THROW_ERROR_EXCEPTION("Both arguments should be buffer objects.");
-    if (Buffer::Length(nonce_buf) != 4) return THROW_ERROR_EXCEPTION("Nonce buffer has invalid size.");
+    if (!Buffer::HasInstance(block_template_buf) || !Buffer::HasInstance(nonce_buf) || !Buffer::HasInstance(merkle_root_buf)) return THROW_ERROR_EXCEPTION("All 3 arguments should be buffer objects.");
+    if (Buffer::Length(nonce_buf) != 8) return THROW_ERROR_EXCEPTION("Nonce buffer has invalid size.");
+    if (Buffer::Length(merkle_root_buf) != 32) return THROW_ERROR_EXCEPTION("Merkle root buffer has invalid size.");
 
-    uint32_t nonce = *reinterpret_cast<uint32_t*>(Buffer::Data(nonce_buf));
+    uint64_t nonce = *reinterpret_cast<uint64_t*>(Buffer::Data(nonce_buf));
     blobdata block_template_blob = std::string(Buffer::Data(block_template_buf), Buffer::Length(block_template_buf));
     blobdata output = "";
 
     enum BLOB_TYPE blob_type = BLOB_TYPE_CRYPTONOTE;
     if (info.Length() >= 3) {
-        if (!info[2]->IsNumber()) return THROW_ERROR_EXCEPTION("Argument 3 should be a number");
-        blob_type = static_cast<enum BLOB_TYPE>(Nan::To<int>(info[2]).FromMaybe(0));
+        if (!info[3]->IsNumber()) return THROW_ERROR_EXCEPTION("Argument 3 should be a number");
+        blob_type = static_cast<enum BLOB_TYPE>(Nan::To<int>(info[3]).FromMaybe(0));
     }
 
     block b = AUTO_VAL_INIT(b);
@@ -159,6 +164,9 @@ NAN_METHOD(construct_block_blob) {
         if (!construct_parent_block(b, parent_block)) return THROW_ERROR_EXCEPTION("Failed to construct parent block");
         if (!mergeBlocks(parent_block, b, std::vector<crypto::hash>())) return THROW_ERROR_EXCEPTION("Failed to postprocess mining block");
     }
+
+    crypto::hash merkleRoot = *reinterpret_cast<crypto::hash*>(Buffer::Data(merkle_root_buf));
+    b.merkle_root = merkleRoot;
 
     if (!block_to_blob(b, output)) return THROW_ERROR_EXCEPTION("Failed to convert block to blob");
 

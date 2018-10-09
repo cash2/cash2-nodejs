@@ -429,10 +429,14 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool get_block_hashing_blob(const block& b, blobdata& blob)
   {
-    blob = t_serializable_object_to_blob(static_cast<const block_header&>(b));
-    crypto::hash tree_root_hash = get_tx_tree_hash(b);
-    blob.append(reinterpret_cast<const char*>(&tree_root_hash), sizeof(tree_root_hash));
-    blob.append(tools::get_varint_data(b.tx_hashes.size()+1));
+    block_header blockHeader;
+
+    blockHeader.prev_id = b.prev_id;
+    blockHeader.nonce = b.nonce;
+    blockHeader.timestamp = b.timestamp;
+    blockHeader.merkle_root = get_tx_tree_hash(b);
+
+    blob = t_serializable_object_to_blob(blockHeader);
 
     return true;
   }
@@ -567,14 +571,76 @@ namespace cryptonote
   //---------------------------------------------------------------
   crypto::hash get_tx_tree_hash(const block& b)
   {
+    blobdata baseTransactionBA;
+ 
+    if(!tx_to_blob(b.miner_tx, baseTransactionBA))
+    {
+      return null_hash;
+    }
+
     std::vector<crypto::hash> txs_ids;
-    crypto::hash h = null_hash;
-    size_t bl_sz = 0;
-    get_transaction_hash(b.miner_tx, h, bl_sz);
-    txs_ids.push_back(h);
-    BOOST_FOREACH(auto& th, b.tx_hashes)
+
+    if (baseTransactionBA.size() > 120)
+    {
+      // Need to split base transaction binary array because Siacoin stratum
+      // protocol and Antminer A3 requires the coinbase transaction size to be less
+      // than or equal to 120 bytes and the cryptonote coinbase transaction size is
+      // much larger (usually over 300 bytes)
+
+      // Base transaction tail binary array is the last 120 bytes or 240 hex characters
+      // of the base transaction binary array
+      // This is what is sent to mining pools for hashing with extra nonce 1 and 2
+      // Tail must be added before head because tail binary array changes when adding extra
+      // nonce 1 and 2 by the mining pools and the hash sent to the mining pool will
+      // be inconsistent
+      blobdata baseTransactionTailBA(baseTransactionBA.end() - 120, baseTransactionBA.end()); 
+
+      // Prepend null byte to the base transaction tail binary array to comply with
+      // Siacoin stratum protocol
+      baseTransactionTailBA.insert(baseTransactionTailBA.begin(), 0);
+
+      crypto::hash baseTransactionTailHash = get_blob_hash(baseTransactionTailBA);
+
+      txs_ids.push_back(baseTransactionTailHash);
+
+      // Base transaction head binary array is the first part of the base transaction binary
+      // array that is omitted from baseTransactionTailBA
+      // This is added into the merkle root as a security precaution against possible
+      // attacks
+      blobdata baseTransactionHeadBA(baseTransactionBA.begin(), baseTransactionBA.end() - 120);
+
+      crypto::hash baseTransactionHeadHash = get_blob_hash(baseTransactionHeadBA);
+
+      txs_ids.push_back(baseTransactionHeadHash);
+    }
+    else
+    {
+      // Genesis transaction is less than 120 bytes
+      // Need this else clause or genesis block won't load
+
+      // Prepend null byte to the base transaction binary array to comply with
+      // Siacoin stratum protocol
+      baseTransactionBA.insert(baseTransactionBA.begin(), 0);
+
+      crypto::hash baseTransactionHash = get_blob_hash(baseTransactionBA);
+
+      txs_ids.push_back(baseTransactionHash);
+    }
+
+    for (auto& th : b.tx_hashes) {
       txs_ids.push_back(th);
+    }
+
     return get_tx_tree_hash(txs_ids);
+
+    // std::vector<crypto::hash> txs_ids;
+    // crypto::hash h = null_hash;
+    // size_t bl_sz = 0;
+    // get_transaction_hash(b.miner_tx, h, bl_sz);
+    // txs_ids.push_back(h);
+    // BOOST_FOREACH(auto& th, b.tx_hashes)
+      // txs_ids.push_back(th);
+    // return get_tx_tree_hash(txs_ids);
   }
   //---------------------------------------------------------------
 }
