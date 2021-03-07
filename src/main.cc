@@ -72,7 +72,8 @@ static bool construct_parent_block(const cryptonote::block& b, cryptonote::block
 NAN_METHOD(convert_blob) {
     if (info.Length() < 1) return THROW_ERROR_EXCEPTION("You must provide one argument.");
 
-    Local<Object> target = info[0]->ToObject();
+		v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    Local<Object> target = info[0]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
     if (!Buffer::HasInstance(target)) return THROW_ERROR_EXCEPTION("Argument should be a buffer object.");
 
     blobdata input = std::string(Buffer::Data(target), Buffer::Length(target));
@@ -108,7 +109,8 @@ NAN_METHOD(convert_blob) {
 NAN_METHOD(get_block_id) {
     if (info.Length() < 1) return THROW_ERROR_EXCEPTION("You must provide one argument.");
 
-    Local<Object> target = info[0]->ToObject();
+		v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    Local<Object> target = info[0]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
     if (!Buffer::HasInstance(target)) return THROW_ERROR_EXCEPTION("Argument should be a buffer object.");
 
     blobdata input = std::string(Buffer::Data(target), Buffer::Length(target));
@@ -135,9 +137,10 @@ NAN_METHOD(get_block_id) {
 NAN_METHOD(construct_block_blob) {
     if (info.Length() < 2) return THROW_ERROR_EXCEPTION("You must provide two arguments.");
 
-    Local<Object> block_template_buf = info[0]->ToObject();
-    Local<Object> nonce_buf = info[1]->ToObject();
-    Local<Object> merkle_root_buf = info[2]->ToObject();
+		v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    Local<Object> block_template_buf = info[0]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
+    Local<Object> nonce_buf = info[1]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
+		Local<Object> merkle_root_buf = info[2]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
 
     if (!Buffer::HasInstance(block_template_buf) || !Buffer::HasInstance(nonce_buf) || !Buffer::HasInstance(merkle_root_buf)) return THROW_ERROR_EXCEPTION("All 3 arguments should be buffer objects.");
     if (Buffer::Length(nonce_buf) != 8) return THROW_ERROR_EXCEPTION("Nonce buffer has invalid size.");
@@ -178,7 +181,7 @@ NAN_METHOD(construct_block_blob) {
 NAN_METHOD(address_decode) {
     if (info.Length() < 1) return THROW_ERROR_EXCEPTION("You must provide one argument.");
 
-    Local<Object> target = info[0]->ToObject();
+		Local<Object> target = info[0]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
 
     if (!Buffer::HasInstance(target)) return THROW_ERROR_EXCEPTION("Argument should be a buffer object.");
     
@@ -208,7 +211,7 @@ NAN_METHOD(address_decode) {
 NAN_METHOD(address_decode_integrated) {
     if (info.Length() < 1) return THROW_ERROR_EXCEPTION("You must provide one argument.");
 
-    Local<Object> target = info[0]->ToObject();
+		Local<Object> target = info[0]->ToObject(isolate->GetCurrentContext()).ToLocalChecked();
 
     if (!Buffer::HasInstance(target)) return THROW_ERROR_EXCEPTION("Argument should be a buffer object.");
 
